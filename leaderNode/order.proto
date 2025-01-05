@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+enum Operation {
+    SET = 0;
+    GET = 1;
+    DELETE = 2;
+}
+
+message Txn {
+    Operation operation = 1;
+    string key = 2;
+    bytes value = 3;
+}
+
+message Order {
+    int64 timestamp = 1;
+    repeated Txn txnList = 2;
+}
+
+message msg {
+    bytes Order = 1;
+    bytes hash = 2;
+}
