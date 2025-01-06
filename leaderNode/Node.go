@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"leader/pb"
 	"net"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,7 +29,8 @@ type Node struct {
 
 	nodeMux sync.RWMutex
 
-	msgBuffer chan []byte
+	activeReciepts map[uuid.UUID]*pb.Reciept
+	recieptUpdate  []chan bool
 }
 
 type keyPair struct {
@@ -46,39 +47,6 @@ type keyPair struct {
 // 	}
 // }
 
-func signOrder(order *pb.Order, priv ed25519.PrivateKey) ([]byte, error) {
-
-	bytz, err := proto.Marshal(order)
-	if err != nil {
-		return nil, err
-	}
-	hash := ed25519.Sign(priv, bytz)
-	r, _ := proto.Marshal(&pb.Msg{
-		Hash:  hash,
-		Order: bytz,
-	})
-	return r, nil
-}
-
-func verifyOrder(msg []byte, pub ed25519.PublicKey) (*pb.Order, error) {
-	m := pb.Msg{}
-	err := proto.Unmarshal(msg, &m)
-	if err != nil {
-		return nil, fmt.Errorf("bad msg", err)
-	}
-	valid := ed25519.Verify(pub, m.Order, m.Hash)
-	if !valid {
-		return nil, fmt.Errorf("bad signature")
-	}
-	o := pb.Order{}
-	err = proto.Unmarshal(m.Order, &o)
-	if err != nil {
-		return nil, fmt.Errorf("Bad order")
-	}
-	return &o, nil
-
-}
-
 func NodeInit() *Node {
 	// kp := generateKeyPair()
 	kv := KvInit()
@@ -86,8 +54,9 @@ func NodeInit() *Node {
 	node := Node{
 		bucket: kv,
 		// keyPair:   kp,
-		nodes:     make(map[string]net.Conn),
-		msgBuffer: make(chan []byte, 10),
+		nodes:          make(map[string]net.Conn),
+		activeReciepts: make(map[uuid.UUID]*pb.Reciept),
+		recieptUpdate:  make([]chan bool, 0),
 	}
 
 	err := node.getKeys()
@@ -97,7 +66,9 @@ func NodeInit() *Node {
 		node.perms = WRITE
 	}
 
-	go node.connect()
+	node.connect()
+
+	fmt.Println("node permissions:", node.perms)
 
 	return &node
 }
@@ -105,7 +76,8 @@ func NodeInit() *Node {
 func (node *Node) getKeys() error {
 	conn, err := net.Dial("tcp", Config.keyStore)
 	if err != nil {
-		os.Exit(1)
+		fmt.Println(err)
+		return err
 	}
 	defer conn.Close()
 
@@ -174,11 +146,11 @@ func (node *Node) connect() {
 		go func(address string) {
 			defer wg.Done()
 			node.connectTo(address)
+			fmt.Println("connect")
 		}(Config.nodes[i])
 	}
 
 	wg.Wait()
-	return
 }
 
 func (node *Node) connectTo(address string) {
@@ -192,6 +164,7 @@ func (node *Node) connectTo(address string) {
 
 func (node *Node) handleConnection(conn net.Conn) {
 	defer func() {
+		fmt.Println("closing connection", conn.LocalAddr())
 		conn.Close()
 		node.nodeMux.Lock()
 		node.nodes[conn.LocalAddr().Network()] = nil
@@ -207,6 +180,10 @@ func (node *Node) handleConnection(conn net.Conn) {
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
+			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+
+				continue
+			}
 			return
 		}
 		msg := make([]byte, n)
@@ -219,4 +196,94 @@ func (node *Node) handleConnection(conn net.Conn) {
 
 func (node *Node) handleMessage(msg []byte, conn net.Conn) {
 
+	m := pb.Msg{}
+	err := proto.Unmarshal(msg, &m)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if rec := m.GetReciept(); rec != nil {
+		node.activeReciepts[uuid.UUID(m.GetUuid())] = rec
+		for _, ch := range node.recieptUpdate {
+			ch <- true
+		}
+
+		return
+	}
+
+	order, err, txnId := verifyOrder(msg, node.trusted)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	rec := node.bucket.parseOrder(order)
+	node.bucket.dump()
+
+	Res := pb.Msg{
+		Hash:    []byte("0"),
+		Uuid:    txnId[:],
+		Content: &pb.Msg_Reciept{Reciept: rec},
+	}
+	reciept, err := proto.Marshal(&Res)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	conn.Write(reciept)
+
+}
+
+func (node *Node) PropogateOrder(conn net.Conn, order *pb.Order) {
+	// conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	fmt.Println("propogating order", order, node.PrivateKey)
+
+	msg, txnID, err := signOrder(order, node.PrivateKey)
+
+	if err != nil {
+		return
+	}
+
+	_, err = conn.Write(msg)
+	if err != nil {
+		return
+	}
+
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+
+	up := make(chan bool)
+	node.recieptUpdate = append(node.recieptUpdate, up)
+
+	for {
+		select {
+		case <-timer.C:
+			// node.nodes[conn.LocalAddr().String()] = nil
+			fmt.Println("failed to recieve reciept")
+			return
+		case <-up:
+			fmt.Println("reciept update", node.activeReciepts[txnID].Items[0].Operation)
+			if node.activeReciepts[txnID] == nil {
+				continue
+			}
+
+			fmt.Println("acknowledgement recieved")
+			return
+			// default:
+			// 	n, err := conn.Read(buf)
+			// 	if err != nil {
+			// 		fmt.Println(err)
+			// 		continue
+			// 	}
+
+			// 	if uuid.UUID(m.GetUuid()) != txnID {
+			// 		fmt.Println("bad uuid", m.GetUuid())
+			// 		continue
+			// 	}
+			// 	fmt.Println("acknowledgement recieved")
+			// 	return
+		}
+
+	}
 }

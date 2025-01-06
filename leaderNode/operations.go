@@ -7,48 +7,59 @@ import (
 	"time"
 )
 
-func (kv *KvStore) parseOrder(order *pb.Order) txnReciept {
-	reciept := make(txnReciept, len(order.TxnList))
+func (kv *KvStore) parseOrder(order *pb.Order) *pb.Reciept {
+	fmt.Println(order)
+	Items := make([]*pb.RecieptItem, len(order.TxnList))
 
 	var wg sync.WaitGroup
 
 	timestamp := order.Timestamp
-	for _, tx := range order.TxnList {
+	for i, tx := range order.TxnList {
 		wg.Add(1)
 		go func(tx *pb.Txn) {
 			defer wg.Done()
 
 			r := kv.attemptTransaction(tx, timestamp)
-			reciept = append(reciept, r)
+			if r == nil {
+				fmt.Println("couldnt attempt txn")
+				return
+			}
+			Items[i] = r
 		}(tx)
 	}
 	wg.Wait()
-	fmt.Println(reciept)
 
-	return reciept
+	receipt := &pb.Reciept{
+		Items: Items,
+	}
+
+	return receipt
 }
 
-func (kv *KvStore) attemptTransaction(txn *pb.Txn, timestamp int64) txnRecepitItem {
+func (kv *KvStore) attemptTransaction(txn *pb.Txn, timestamp int64) *pb.RecieptItem {
 
-	rec := txnRecepitItem{timestamp: time.Now().Unix()}
+	fmt.Println("operation", txn.Operation.Number())
+	rec := &pb.RecieptItem{Timestamp: time.Now().Unix()}
 
 	op := txn.Operation
 	switch op {
 	case pb.Operation(SET):
 		s, err := kv.set(txn.Key, txn.Value, timestamp)
-		rec.status = s
-		rec.Operation = "SET"
+		rec.Operation = pb.Operation_SET
+		fmt.Println("hha:", rec.Operation)
+		rec.Status = s
 		if err != nil {
-			rec.Result = string(err.Error())
+			rec.Val = []byte(err.Error())
+		} else {
+			rec.Val = []byte("SUCCESS")
 		}
 	case pb.Operation_GET:
 		s, v, err := kv.get(txn.Key)
-		rec.status = s
-		rec.Operation = "GET"
+		rec.Status = s
 		if err != nil {
-			rec.Result = string(err.Error())
+			rec.Val = []byte(err.Error())
 		} else {
-			rec.Result = string(v)
+			rec.Val = v
 		}
 
 	case pb.Operation_DELETE:
@@ -56,6 +67,9 @@ func (kv *KvStore) attemptTransaction(txn *pb.Txn, timestamp int64) txnRecepitIt
 	default:
 		fmt.Println("defaulting")
 	}
+
+	fmt.Println("rec:", &rec)
+	fmt.Print("rec", rec.Operation)
 
 	return rec
 }
@@ -82,7 +96,7 @@ func (kv *KvStore) get(key string) (success bool, val []byte, err error) {
 	defer kv.mux.RUnlock()
 
 	if val, exists := kv.db[key]; !exists {
-		return false, nil, fmt.Errorf("Not Found")
+		return false, nil, fmt.Errorf("not Found")
 	} else {
 		return true, val.val, nil
 	}

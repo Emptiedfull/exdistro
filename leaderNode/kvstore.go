@@ -1,10 +1,15 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
+	"leader/pb"
 	"os"
 	"sync"
+
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 type Operation int
@@ -24,15 +29,6 @@ type item struct {
 	val       []byte
 	timestamp int64
 }
-
-type txnRecepitItem struct {
-	timestamp int64
-	Operation string
-	status    bool
-	Result    string
-}
-
-type txnReciept []txnRecepitItem
 
 func KvInit() *KvStore {
 
@@ -65,6 +61,8 @@ func (kv *KvStore) dump() {
 		}
 	}
 
+	fmt.Println(jsonMap, kv.db)
+
 	data, err := json.MarshalIndent(jsonMap, "", "    ")
 	if err != nil {
 		return
@@ -94,5 +92,53 @@ func digest(data []byte) *KvStore {
 	}
 
 	return &kv
+
+}
+
+func signOrder(order *pb.Order, priv ed25519.PrivateKey) ([]byte, uuid.UUID, error) {
+
+	bytz, err := proto.Marshal(order)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	hash := ed25519.Sign(priv, bytz)
+	uid := uuid.New()
+	r, _ := proto.Marshal(&pb.Msg{
+		Hash:    hash,
+		Uuid:    uid[:],
+		Content: &pb.Msg_Order{Order: order},
+	})
+
+	return r, uid, nil
+}
+
+func verifyOrder(msg []byte, trusted []ed25519.PublicKey) (order *pb.Order, err error, txnId uuid.UUID) {
+	m := pb.Msg{}
+	err = proto.Unmarshal(msg, &m)
+	if err != nil {
+		return nil, err, uuid.Nil
+	}
+
+	hash := m.Hash
+	byz, err := proto.Marshal(m.GetOrder())
+	if err != nil {
+		return nil, err, uuid.Nil
+	}
+
+	verified := false
+	for _, pub := range trusted {
+		if ed25519.Verify(pub, byz, hash) {
+			verified = true
+			break
+		}
+	}
+
+	if !verified {
+		return nil, fmt.Errorf("bad hash"), uuid.Nil
+	}
+
+	ord := m.GetOrder()
+
+	return ord, nil, uuid.UUID(m.Uuid)
 
 }

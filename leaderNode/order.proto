@@ -19,7 +19,23 @@ message Order {
     repeated Txn txnList = 2;
 }
 
+message RecieptItem{
+    int64 timestamp = 1;
+    Operation operation = 2;
+    bool status = 3;
+    optional bytes val = 4;
+}
+
+message Reciept { 
+    repeated RecieptItem items = 2;
+}
+
 message msg {
-    bytes Order = 1;
+    
+    bytes uuid = 1;
     bytes hash = 2;
+    oneof content {
+        Order order = 3;
+        Reciept reciept = 4;
+    }
 }
