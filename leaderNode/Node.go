@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,16 +22,17 @@ const (
 )
 
 type Node struct {
-	perms    Permission
-	nodes    map[string]net.Conn
-	listener net.Conn
-	bucket   *KvStore
+	perms  Permission
+	nodes  map[string]net.Conn
+	bucket *KvStore
 	*keyPair
 
 	nodeMux sync.RWMutex
 
-	activeReciepts map[uuid.UUID]*pb.Reciept
-	recieptUpdate  []chan bool
+	// activeReciepts map[uuid.UUID]map[net.Conn]*pb.Reciept
+	// recMux         sync.Mutex
+
+	recieptChan map[net.Conn]map[uuid.UUID]chan *pb.Reciept
 }
 
 type keyPair struct {
@@ -54,9 +56,10 @@ func NodeInit() *Node {
 	node := Node{
 		bucket: kv,
 		// keyPair:   kp,
-		nodes:          make(map[string]net.Conn),
-		activeReciepts: make(map[uuid.UUID]*pb.Reciept),
-		recieptUpdate:  make([]chan bool, 0),
+		nodes: make(map[string]net.Conn),
+		// activeReciepts: make(map[uuid.UUID]map[net.Conn]*pb.Reciept),
+		// recieptUpdate:  make([]chan bool, 0),
+		recieptChan: map[net.Conn]map[uuid.UUID]chan *pb.Reciept{},
 	}
 
 	err := node.getKeys()
@@ -196,80 +199,145 @@ func (node *Node) handleConnection(conn net.Conn) {
 
 func (node *Node) handleMessage(msg []byte, conn net.Conn) {
 
-	m := pb.Msg{}
-	err := proto.Unmarshal(msg, &m)
+	m, err := verifyMessage(msg, node.trusted)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	if rec := m.GetReciept(); rec != nil {
-		node.activeReciepts[uuid.UUID(m.GetUuid())] = rec
-		for _, ch := range node.recieptUpdate {
-			ch <- true
+		fmt.Println("reciept recieved")
+
+		// if node.activeReciepts[uuid.UUID(m.GetUuid())] == nil {
+		// 	node.activeReciepts[uuid.UUID(m.GetUuid())] = make(map[net.Conn]*pb.Reciept)
+		// }
+		// node.activeReciepts[uuid.UUID(m.GetUuid())][conn] = rec
+		if ch := node.recieptChan[conn][uuid.UUID(m.GetUuid())]; ch != nil {
+			node.recieptChan[conn][uuid.UUID(m.GetUuid())] <- rec
+		}
+		// for _, ch := range node.recieptUpdate {
+		// 	ch <- true
+		// }
+		return
+	}
+
+	if ord := m.GetOrder(); ord != nil {
+		rec := node.bucket.ProcessOrder(ord)
+		fmt.Println("order processed")
+
+		Res := &pb.Msg{
+			Hash:    []byte("0"),
+			Uuid:    m.Uuid[:],
+			Content: &pb.Msg_Reciept{Reciept: rec},
+		}
+		// reciept, err := proto.Marshal(&Res)
+		// if err != nil {
+		// 	fmt.Println(err)
+		// 	return
+		// }
+
+		resp, err := signMessage(Res, node.PrivateKey)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
 
-		return
-	}
+		conn.Write(resp)
+		fmt.Println("reciept sent")
 
-	order, err, txnId := verifyOrder(msg, node.trusted)
-	if err != nil {
-		fmt.Println(err)
-		return
 	}
-
-	rec := node.bucket.parseOrder(order)
-	node.bucket.dump()
-
-	Res := pb.Msg{
-		Hash:    []byte("0"),
-		Uuid:    txnId[:],
-		Content: &pb.Msg_Reciept{Reciept: rec},
-	}
-	reciept, err := proto.Marshal(&Res)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	conn.Write(reciept)
 
 }
 
-func (node *Node) PropogateOrder(conn net.Conn, order *pb.Order) {
-	// conn.SetDeadline(time.Now().Add(5 * time.Second))
+func (node *Node) PropogateSetOrder(order *pb.Order) int32 {
+	var wg sync.WaitGroup
 
-	fmt.Println("propogating order", order, node.PrivateKey)
+	var errors atomic.Int32
 
-	msg, txnID, err := signOrder(order, node.PrivateKey)
+	for _, conn := range node.nodes {
+		wg.Add(1)
+
+		go func() {
+
+			_, err := node.sendOrder(conn, order)
+			if err != nil {
+				errors.Add(1)
+			}
+			wg.Done()
+		}()
+	}
+	return errors.Load()
+
+}
+
+func (node *Node) PropogateGetOrder(order *pb.Order) map[net.Conn]*pb.Reciept {
+	var wg sync.WaitGroup
+
+	reciepts := make(map[net.Conn]*pb.Reciept, len(node.nodes))
+
+	for _, conn := range node.nodes {
+		wg.Add(1)
+		go func(conn net.Conn) {
+
+			rec, _ := node.sendOrder(conn, order)
+			reciepts[conn] = rec
+			wg.Done()
+		}(conn)
+
+	}
+	wg.Wait()
+	return reciepts
+}
+
+func (node *Node) sendOrder(conn net.Conn, order *pb.Order) (*pb.Reciept, error) {
+	txnID := uuid.New()
+
+	m := &pb.Msg{
+		Uuid:    txnID[:],
+		Content: &pb.Msg_Order{Order: order},
+	}
+
+	msg, err := signMessage(m, node.PrivateKey)
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	_, err = conn.Write(msg)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 
-	up := make(chan bool)
-	node.recieptUpdate = append(node.recieptUpdate, up)
+	up := make(chan *pb.Reciept)
+	if node.recieptChan[conn] == nil {
+		node.recieptChan[conn] = make(map[uuid.UUID]chan *pb.Reciept)
+	}
+	node.recieptChan[conn][txnID] = up
 
 	for {
 		select {
 		case <-timer.C:
-			// node.nodes[conn.LocalAddr().String()] = nil
-			fmt.Println("failed to recieve reciept")
-			return
-		case <-up:
-			fmt.Println("reciept update", node.activeReciepts[txnID].Items[0].Operation)
-			if node.activeReciepts[txnID] == nil {
+			node.nodes[conn.LocalAddr().String()] = nil
+			fmt.Println("Node down", conn.LocalAddr())
+			return nil, err
+		case r := <-up:
+
+			if r == nil {
 				continue
 			}
+			return r, nil
 
-			fmt.Println("acknowledgement recieved")
-			return
+			// if len(node.activeReciepts[txnID]) > 0 {
+			// 	rec, exists := node.activeReciepts[txnID][conn]
+			// 	if rec == nil || !exists {
+			// 		continue
+			// 	}
+
+			// 	return rec, nil
+			// }
+
 			// default:
 			// 	n, err := conn.Read(buf)
 			// 	if err != nil {

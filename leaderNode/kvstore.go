@@ -8,7 +8,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -61,8 +60,6 @@ func (kv *KvStore) dump() {
 		}
 	}
 
-	fmt.Println(jsonMap, kv.db)
-
 	data, err := json.MarshalIndent(jsonMap, "", "    ")
 	if err != nil {
 		return
@@ -95,50 +92,63 @@ func digest(data []byte) *KvStore {
 
 }
 
-func signOrder(order *pb.Order, priv ed25519.PrivateKey) ([]byte, uuid.UUID, error) {
-
-	bytz, err := proto.Marshal(order)
+func verifyMessage(res []byte, trusted []ed25519.PublicKey) (m *pb.Msg, er error) {
+	msg := &pb.Msg{}
+	err := proto.Unmarshal(res, msg)
 	if err != nil {
-		return nil, uuid.Nil, err
-	}
-	hash := ed25519.Sign(priv, bytz)
-	uid := uuid.New()
-	r, _ := proto.Marshal(&pb.Msg{
-		Hash:    hash,
-		Uuid:    uid[:],
-		Content: &pb.Msg_Order{Order: order},
-	})
-
-	return r, uid, nil
-}
-
-func verifyOrder(msg []byte, trusted []ed25519.PublicKey) (order *pb.Order, err error, txnId uuid.UUID) {
-	m := pb.Msg{}
-	err = proto.Unmarshal(msg, &m)
-	if err != nil {
-		return nil, err, uuid.Nil
+		return nil, err
 	}
 
-	hash := m.Hash
-	byz, err := proto.Marshal(m.GetOrder())
-	if err != nil {
-		return nil, err, uuid.Nil
+	var bytez []byte
+	switch msg.GetContent().(type) {
+	case *pb.Msg_Order:
+		bytez, err = proto.Marshal(msg.GetOrder())
+		if err != nil {
+			return nil, err
+		}
+	case *pb.Msg_Reciept:
+		bytez, err = proto.Marshal(msg.GetReciept())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	verified := false
-	for _, pub := range trusted {
-		if ed25519.Verify(pub, byz, hash) {
+	for _, key := range trusted {
+		if ed25519.Verify(key, bytez, msg.Hash) {
 			verified = true
 			break
 		}
 	}
-
 	if !verified {
-		return nil, fmt.Errorf("bad hash"), uuid.Nil
+		return nil, fmt.Errorf("BAD HASH")
+	}
+	return msg, nil
+}
+
+func signMessage(msg *pb.Msg, priv ed25519.PrivateKey) (load []byte, er error) {
+	var bytez []byte
+	var err error
+	switch msg.GetContent().(type) {
+	case *pb.Msg_Order:
+		bytez, err = proto.Marshal(msg.GetOrder())
+		if err != nil {
+			return nil, err
+		}
+	case *pb.Msg_Reciept:
+		bytez, err = proto.Marshal(msg.GetReciept())
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	ord := m.GetOrder()
+	hash := ed25519.Sign(priv, bytez)
+	msg.Hash = hash
 
-	return ord, nil, uuid.UUID(m.Uuid)
+	payload, err := proto.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
 
 }

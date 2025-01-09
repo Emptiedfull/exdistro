@@ -9,25 +9,28 @@ enum Operation {
 }
 
 message Txn {
-    Operation operation = 1;
     string key = 2;
     bytes value = 3;
 }
 
 message Order {
     int64 timestamp = 1;
-    repeated Txn txnList = 2;
+    Operation operation = 2;
+    repeated Txn txnList =3;
 }
 
 message RecieptItem{
-    int64 timestamp = 1;
-    Operation operation = 2;
-    bool status = 3;
+    
+    bool status = 1;
+    string error = 2;
+    string key = 3;
     optional bytes val = 4;
 }
 
 message Reciept { 
-    repeated RecieptItem items = 2;
+    int64 timestamp = 1;
+    Operation operation = 2;
+    repeated RecieptItem items = 3;
 }
 
 message msg {

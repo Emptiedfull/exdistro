@@ -8,10 +8,12 @@ type config struct {
 }
 
 var Config config = config{
-	port:     8000,
-	passkey:  "oLBTA7gHDh",
+	port:     9000,
+	passkey:  "IVahscBV+w",
 	keyStore: "localhost:12000",
 	nodes: []string{
+		"localhost:8000",
 		"localhost:9000",
+		"localhost:7000",
 	},
 }

@@ -9,23 +9,22 @@ import (
 func main() {
 
 	node := NodeInit()
-	defer node.bucket.dump()
 	order := &pb.Order{
 		Timestamp: time.Now().Unix(),
+		Operation: pb.Operation_SET,
 		TxnList: []*pb.Txn{
 			{
-				Operation: pb.Operation_SET,
-				Key:       "he2y",
-				Value:     []byte("jojo"),
+
+				Key:   "he2y",
+				Value: []byte("jojo"),
 			},
 		},
 	}
 	time.Sleep(1 * time.Second)
 	fmt.Println(node.nodes)
-	for _, conn := range node.nodes {
-		node.PropogateOrder(conn, order)
-	}
-
+	down := node.PropogateSetOrder(order)
+	fmt.Println(down)
+	go startClientApi(node)
 	node.startListener()
 
 }
