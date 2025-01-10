@@ -1,29 +1,18 @@
 package main
 
 import (
-	"fmt"
-	"leader/pb"
-	"time"
+	"net/http"
+	_ "net/http/pprof"
+	"strconv"
 )
 
 func main() {
 
-	node := NodeInit()
-	order := &pb.Order{
-		Timestamp: time.Now().Unix(),
-		Operation: pb.Operation_SET,
-		TxnList: []*pb.Txn{
-			{
+	go func() {
+		http.ListenAndServe("localhost:"+strconv.Itoa(Config.port+2), nil)
+	}()
 
-				Key:   "he2y",
-				Value: []byte("jojo"),
-			},
-		},
-	}
-	time.Sleep(1 * time.Second)
-	fmt.Println(node.nodes)
-	down := node.PropogateSetOrder(order)
-	fmt.Println(down)
+	node := NodeInit()
 	go startClientApi(node)
 	node.startListener()
 

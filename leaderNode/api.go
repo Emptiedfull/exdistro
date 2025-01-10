@@ -15,6 +15,14 @@ type MassGetRes map[string][]byte
 func startClientApi(node *Node) {
 	app := fiber.New()
 
+	app.Delete("/api/:key", func(c *fiber.Ctx) error {
+		err := node.delClientOne(c.Params("key"))
+		if err != nil {
+			c.SendString(err.Error())
+		}
+		return c.SendString("SUCCESS")
+	})
+
 	app.Get("/api/massget", func(c *fiber.Ctx) error {
 		var massGet MassGet
 		if err := json.Unmarshal(c.Body(), &massGet); err != nil {
@@ -23,6 +31,7 @@ func startClientApi(node *Node) {
 		}
 
 		obj, err := node.getClientMass(massGet)
+		fmt.Println(obj)
 		if err != nil {
 			c.SendString("error")
 		}

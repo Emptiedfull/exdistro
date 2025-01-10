@@ -101,8 +101,12 @@ func (kv *KvStore) ProcessOrder(order *pb.Order) (reciept *pb.Reciept) {
 			}(order.TxnList[i])
 		}
 		wg.Wait()
-
+	case pb.Operation_DELETE:
+		for i, txn := range order.TxnList {
+			Items[i] = kv.ProccesDelTxn(txn)
+		}
 	}
+
 	rec := &pb.Reciept{
 		Operation: order.Operation,
 		Items:     Items,
@@ -110,6 +114,20 @@ func (kv *KvStore) ProcessOrder(order *pb.Order) (reciept *pb.Reciept) {
 
 	return rec
 
+}
+
+func (kv *KvStore) ProccesDelTxn(txn *pb.Txn) (rec *pb.RecieptItem) {
+	r := &pb.RecieptItem{}
+	r.Key = txn.GetKey()
+	err := kv.delInternal(txn.GetKey())
+	if err != nil {
+		r.Status = false
+		fmt.Println("error occured", err)
+		r.Error = err.Error()
+		return r
+	}
+	r.Status = true
+	return r
 }
 
 func (kv *KvStore) ProccesGetTxn(txn *pb.Txn) (rec *pb.RecieptItem) {
@@ -135,45 +153,22 @@ func (kv *KvStore) ProccesGetTxn(txn *pb.Txn) (rec *pb.RecieptItem) {
 }
 
 func (kv *KvStore) ProccesSetTxn(txn *pb.Txn, timestamp int64) *pb.RecieptItem {
+
 	r := &pb.RecieptItem{Key: txn.Key}
 	err := kv.setInternal(txn.Key, txn.Value, timestamp)
 	if err != nil {
 		r.Status = false
+		fmt.Println("error occured", err)
 		r.Error = err.Error()
 	}
 	r.Status = true
 	return r
 }
 
-func (kv *KvStore) setInternal(key string, val []byte, timestamp int64) (err error) {
-	kv.mux.Lock()
-	defer kv.mux.Unlock()
-
-	if _, exists := kv.db[key]; !exists {
-		kv.db[key] = item{timestamp: timestamp, val: val}
-		return nil
-	} else {
-		if kv.db[key].timestamp <= timestamp {
-			kv.db[key] = item{timestamp: timestamp, val: val}
-			return nil
-		}
-		return fmt.Errorf("OldVer")
-
-	}
-}
-
-func (kv *KvStore) getInternal(key string) (val []byte, err error) {
-	kv.mux.RLock()
-	defer kv.mux.RUnlock()
-
-	if val, exists := kv.db[key]; !exists {
-		return nil, fmt.Errorf("Miss")
-	} else {
-		return val.val, nil
-	}
-}
-
 func (node *Node) setClientOne(key string, val []byte) error {
+	keyCopy := make([]byte, len(key))
+	copy(keyCopy, key)
+	key = string(keyCopy)
 	err := node.bucket.setInternal(key, val, time.Now().Unix())
 	defer node.syncSetOne(key, val)
 	if err != nil {
@@ -331,14 +326,31 @@ func extractValOne(reciepts map[net.Conn]*pb.Reciept) (v []byte, er error) {
 		}
 	}
 
-	fmt.Println(valueCount)
-
 	if vale == "" {
 		return nil, fmt.Errorf("no concensus")
 	}
 
 	return []byte(vale), nil
 
+}
+
+func (node *Node) delClientOne(key string) error {
+	err := node.bucket.delInternal(key)
+	if err != nil {
+		return err
+	}
+	txn := &pb.Txn{
+		Key: key,
+	}
+
+	order := &pb.Order{
+		Operation: pb.Operation_DELETE,
+		Timestamp: time.Now().Unix(),
+		TxnList:   []*pb.Txn{txn},
+	}
+
+	defer node.PropogateSetOrder(order)
+	return nil
 }
 
 func (node *Node) getClientMass(m MassGet) (res MassGetRes, err error) {
@@ -357,7 +369,14 @@ func (node *Node) getClientMass(m MassGet) (res MassGetRes, err error) {
 
 	rec := node.bucket.ProcessOrder(order)
 	msr := node.processMassGetReciept(rec)
+	go node.massSelfCorrection(msr)
 	return msr, nil
+}
+
+func (node *Node) massSelfCorrection(msr MassGetRes) {
+	for key, item := range msr {
+		node.bucket.setInternal(key, item, time.Now().Unix())
+	}
 }
 
 func (node *Node) processMassGetReciept(reciept *pb.Reciept) (ms MassGetRes) {
@@ -407,7 +426,7 @@ func (node *Node) processMassGetReciept(reciept *pb.Reciept) (ms MassGetRes) {
 	missed := make(map[string]*pb.RecieptItem)
 	hitted := make(map[string]*pb.RecieptItem)
 
-	majority := len(node.nodes) / 2
+	majority := len(node.nodeWriters) / 2
 
 	responses := make(map[string]map[string]int)
 
@@ -448,12 +467,15 @@ func (node *Node) processMassGetReciept(reciept *pb.Reciept) (ms MassGetRes) {
 
 	var MassGet MassGetRes = make(MassGetRes)
 
-	for key, item := range hitted {
-		MassGet[key] = item.Val
+	for key, item := range missed {
+		if item != nil {
+			MassGet[key] = []byte("MISS")
+		}
+
 	}
 
-	for key, item := range missed {
-		MassGet[key] = []byte(item.GetError())
+	for key, item := range hitted {
+		MassGet[key] = item.Val
 	}
 
 	return MassGet

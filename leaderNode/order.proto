@@ -36,7 +36,6 @@ message Reciept {
 message msg {
     
     bytes uuid = 1;
-    bytes hash = 2;
     oneof content {
         Order order = 3;
         Reciept reciept = 4;

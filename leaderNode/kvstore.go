@@ -1,12 +1,13 @@
 package main
 
 import (
-	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"leader/pb"
 	"os"
+	"strconv"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -65,7 +66,7 @@ func (kv *KvStore) dump() {
 		return
 	}
 
-	os.WriteFile("kvstore_dump.json", data, 0644)
+	os.WriteFile(strconv.Itoa(Config.port)+"kvstore_dump.json", data, 0644)
 }
 
 func digest(data []byte) *KvStore {
@@ -92,63 +93,70 @@ func digest(data []byte) *KvStore {
 
 }
 
-func verifyMessage(res []byte, trusted []ed25519.PublicKey) (m *pb.Msg, er error) {
+func verifyMessage(res []byte) (m *pb.Msg, er error) {
 	msg := &pb.Msg{}
 	err := proto.Unmarshal(res, msg)
 	if err != nil {
 		return nil, err
 	}
 
-	var bytez []byte
-	switch msg.GetContent().(type) {
-	case *pb.Msg_Order:
-		bytez, err = proto.Marshal(msg.GetOrder())
-		if err != nil {
-			return nil, err
-		}
-	case *pb.Msg_Reciept:
-		bytez, err = proto.Marshal(msg.GetReciept())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	verified := false
-	for _, key := range trusted {
-		if ed25519.Verify(key, bytez, msg.Hash) {
-			verified = true
-			break
-		}
-	}
-	if !verified {
-		return nil, fmt.Errorf("BAD HASH")
-	}
 	return msg, nil
 }
 
-func signMessage(msg *pb.Msg, priv ed25519.PrivateKey) (load []byte, er error) {
-	var bytez []byte
-	var err error
-	switch msg.GetContent().(type) {
-	case *pb.Msg_Order:
-		bytez, err = proto.Marshal(msg.GetOrder())
-		if err != nil {
-			return nil, err
-		}
-	case *pb.Msg_Reciept:
-		bytez, err = proto.Marshal(msg.GetReciept())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	hash := ed25519.Sign(priv, bytez)
-	msg.Hash = hash
+func signMessage(msg *pb.Msg) (load []byte, er error) {
 
 	payload, err := proto.Marshal(msg)
 	if err != nil {
+		fmt.Println("error marshaling", err)
 		return nil, err
 	}
 	return payload, nil
 
+}
+
+func (kv *KvStore) setInternal(key string, val []byte, timestamp int64) (err error) {
+	kv.mux.Lock()
+	defer kv.mux.Unlock()
+
+	if _, exists := kv.db[key]; !exists {
+		kv.db[key] = item{timestamp: timestamp, val: val}
+		return nil
+	} else {
+		if kv.db[key].timestamp <= timestamp {
+			kv.db[key] = item{timestamp: timestamp, val: val}
+			return nil
+		}
+		return fmt.Errorf("OldVer")
+
+	}
+}
+
+func (kv *KvStore) delInternal(key string) error {
+	kv.mux.Lock()
+	defer kv.mux.Unlock()
+
+	if _, exists := kv.db[key]; exists {
+		delete(kv.db, key)
+	} else {
+		return fmt.Errorf("null")
+	}
+	return nil
+}
+
+func (kv *KvStore) getInternal(key string) (val []byte, err error) {
+	kv.mux.RLock()
+	defer kv.mux.RUnlock()
+
+	if val, exists := kv.db[key]; !exists {
+		return nil, fmt.Errorf("Miss")
+	} else {
+		return val.val, nil
+	}
+}
+
+func (kv *KvStore) dumpProcess() {
+	ticker := time.NewTicker(5 * time.Second)
+	for range ticker.C {
+		kv.dump()
+	}
 }
