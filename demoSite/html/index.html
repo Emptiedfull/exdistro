@@ -1,16 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="static/index.css">
     <title>ExStore</title>
 </head>
-<body>
-   <div class="main">
-        <div class="Navbar">
 
+<body>
+    <div class="Navbar">
+        <span id="main_icon">ExStore</span>
+        <div id="links">
+            <span >
+                <a href="/">About</a>
+            </span>
+            <span>
+                <a href="/demo">Demo</a>
+            </span>
         </div>
-        
-   </div>
+    </div>
+    <div class="main">
+
+        <div class="hero">
+            <h1>
+                <span style="color: rgb(67, 121, 221);">Ex</span>Store
+            </h1>
+            <p>
+                Fast Reliable Distributed KV Database
+            </p>
+            <div class="buttons">
+                <a href="/demo" id="yo">
+                <button>
+                   Demo
+                    
+                </button>
+             </a>
+                <button onclick="scrollByAmount()">
+                    Workings
+                </button>
+            </div>
+        </div>
+        <div class="content">
+            <div class="content-text" id="content">
+                <h1>
+                    What is ExStore?
+                </h1>
+                <p>
+                    ExStore is highly reliable multi nodal distributed kv Store built for performance. It promises secruity over transport along with near instant modification across nodes while maintaining low latency in heavy read-write environments.
+                </p>
+                <div class="feature_cards"> 
+                    <div class="card_row">
+                        <div class="card">
+                            <h1>Reliable</h1>
+                            <p>All operations to any node are always synced to all nodes and unresponsive nodes are kicked from the network. This process ensures all nodes provide reliable and updated info at all times. </p>
+
+                        </div>
+                        <div class="card">
+                            <h1>Low Latency</h1>
+                            <p>By utilizing multithreading and low overhead communicaton all nodes maintain low latency even in high traffic.</p>
+                        </div>
+                    </div>
+                    <div class="card_row">
+                        <div class="card">
+                            <h1>Secure</h1>
+                            <p>Using asynmmetrical encryption the nodes only communicate on secured channels, no other connection can be established except from trusted sources.</p>
+                        </div>
+                        <div class="card">
+                            <h1>Zero Allocation</h1>
+                            <p>All communications and api request handling happens in a zero allocations environment, ensuring minimal overhead.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?xml version="1.0" ?><svg height="400" viewBox="0 0 1792 1792" width="400" xmlns="http://www.w3.org/2000/svg"><path d="M896 768q237 0 443-43t325-127v170q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-170q119 84 325 127t443 43zm0 768q237 0 443-43t325-127v170q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-170q119 84 325 127t443 43zm0-384q237 0 443-43t325-127v170q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-170q119 84 325 127t443 43zm0-1152q208 0 385 34.5t280 93.5 103 128v128q0 69-103 128t-280 93.5-385 34.5-385-34.5-280-93.5-103-128v-128q0-69 103-128t280-93.5 385-34.5z"/></svg>
+        </div>
+
+
+    </div>
+    <script src="/static/index.js"></script>
 </body>
+
 </html>

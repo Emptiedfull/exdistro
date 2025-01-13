@@ -1,0 +1,18 @@
+nohup: ignoring input
+connect
+connect
+dial tcp [::1]:9000: connect: connection refused
+connect
+node permissions: 2
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.6                   │ 
+ │               http://127.0.0.1:9001               │ 
+ │       (bound on host 0.0.0.0 and port 9001)       │ 
+ │                                                   │ 
+ │ Handlers ............. 9  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............ 194137 │ 
+ └───────────────────────────────────────────────────┘ 
+
+new node connected: 127.0.0.1:52726
+new node connected: 127.0.0.1:47356

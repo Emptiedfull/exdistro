@@ -80,8 +80,6 @@ func (kS *KeyStore) handleConnection(conn net.Conn) {
 	}
 
 	pass := bytes.TrimSpace(buf[:n])
-
-	fmt.Println(string(pass), kS.passkey)
 	if string(pass) == kS.passkey {
 		priv := kS.generateKeyPair()
 		if priv == nil {
@@ -96,7 +94,7 @@ func (kS *KeyStore) handleConnection(conn net.Conn) {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println(len(py))
+
 		conn.Write(py)
 	} else {
 		fmt.Println("denied")

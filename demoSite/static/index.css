@@ -1,0 +1,180 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    
+}
+
+body{
+    padding: 1.6rem;
+    height: 100vh;
+    width: 100vw;
+    color: white;
+    background: radial-gradient(circle, rgba(29, 28, 28, 0.986) 0%, rgb(0, 0, 0) 40%);
+    font-family: "Inter", sans-serif;
+    background-attachment: fixed;
+    position: relative;
+    overflow-x: hidden;
+    display:flex;
+    flex-direction: column;
+}
+
+body::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-attachment: fixed;
+    background: radial-gradient(circle, rgba(51, 51, 51, 0.986) 0%, rgb(0, 0, 0) 40%);
+    filter: blur(100px); 
+    z-index: -1; 
+}
+
+.Navbar{
+    font-weight: bold;
+    font-size: 1rem;
+    height:10vh;
+    width: 90vw;
+    display: flex;
+    position:fixed;
+    flex-direction: row;
+    justify-content: space-between;
+    z-index:20;
+}
+
+.main{
+}
+
+#main_icon{
+    font-size: 1.2rem;
+}
+
+#links{
+    display: flex;
+    gap:2rem
+}
+
+.hero{
+    width: 100%;
+    height: 100vh;
+    
+    display:flex;
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center;
+    font-weight: 400;
+    transition: transform 0.5s ease-in-out;
+    
+}
+
+.hidden {
+    transform: translateY(-100%);
+}
+
+.hero h1{
+    font-size: 12rem;
+    transform: scaleY(1.2);
+    letter-spacing: 0.5rem;
+}
+
+.hero p{
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    color: gray;
+}
+
+.buttons{
+    margin-top:1rem;
+    width : 60%;
+    display:flex;
+    justify-content: space-between;
+    gap:1rem
+}
+
+#yo{
+    width: 100%;
+}
+
+.buttons button{
+    background-color: rgb(95, 92, 92);
+    color:white;
+    font-size:0.8rem;
+    font-weight: 500;   
+    min-width: 20%;
+    border: none;
+    border-radius: 20px;
+    padding: 0.8rem;
+    cursor:pointer;
+}
+
+a{
+    text-decoration: none;
+    color: inherit;
+}
+.content {
+    width: 90%;;
+    justify-self: center;
+   
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.1); 
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    display:flex;
+    flex-direction: row;
+    color: black;
+    min-height: 80vh;
+    transition: transform 0.5s ease-in-out;
+}
+
+.content-text{
+    
+    width: 80%;
+    color:white;
+}
+
+.content-text h1{
+    margin-bottom: 0.8rem;
+    font-size: 1rem;
+    color: gray;
+}
+
+.content-text p{
+    font-size: 1.1rem;
+    text-align: justify;
+}
+
+.feature_cards{
+    margin-top: 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.card_row{
+    display: flex;
+    flex-direction: row;
+    gap:2rem;
+}
+
+.card{
+    max-width: 40%;
+    
+}
+
+.card h1{
+    color: white;
+}
+.card p{
+    color: gray;
+    font-size: 0.9rem;
+}
+
+svg{
+    align-self: flex-end;
+}
+.content-up{
+    transform: translateY(-50vh);
+}

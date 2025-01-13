@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="static/index.css">
+    <link rel="stylesheet" href="static/demo.css">
+    <title>ExStore</title>
+</head>
+<body>
+    <div class="Navbar">
+        <span id="main_icon">ExStore</span>
+        <div id="links">
+            <span >
+                <a href="/">About</a>
+            </span>
+            <span>
+                <a href="/demo">Demo</a>
+            </span>
+        </div>
+    </div>
+    <div class="demo-main">
+        <div class="demo-title">
+            <h1>Choose a server from the options</h1>
+            <p>
+                All servers are running independently of each other
+            </p>
+        </div>
+        <div class="demo-servers">
+            <!-- <div class="demo-server">
+                Server 1
+            </div>
+            <div class="demo-server">
+                Server 2
+            </div>
+            <div class="demo-server active">
+                Server 3
+            </div> -->
+        </div>
+       
+        <div class="demo-interface disabled">
+            <div class="left-pane">
+               <h1>Get</h1>
+               <div class="singular-get"> 
+                    <div class="input-group">
+                        <label for="get-key">Key:</label>
+                        <input type="text" id="get-key" name="Key">
+                        <button id="get-button">Get</button>
+                    </div>
+                    <div class="get-result">
+                        <pre><code id="get-result-code">Blablah blah</code></pre>
+                    </div>
+
+               </div>
+            </div>
+            <div class="divider"></div>
+            <div class="right-pane">
+                <h1>Set</h1>
+                <div class="singular-set">
+                    <div class="input-group">
+                        <label for="set-key">Key:</label>
+                        <input type="text" id="set-key" name="set-key">
+                    </div>
+                    <div class="input-group">
+                        <label for="set-value">Value:</label>
+                        <input type="text" id="set-value" name="set-value">
+                        
+                    </div>
+                   
+                </div>
+                <div class="options">
+                    <span id="set-result"></span>
+                    <button id="set-button">Set</button>
+                </div>
+                
+        </div>
+
+    </div>
+    <script src="/static/demo.js"></script>
+</body>
+
+</html>

@@ -15,6 +15,10 @@ type MassGetRes map[string][]byte
 func startClientApi(node *Node) {
 	app := fiber.New()
 
+	app.Get("/ping", func(c *fiber.Ctx) error {
+		return c.SendStatus(200)
+	})
+
 	app.Delete("/api/:key", func(c *fiber.Ctx) error {
 		err := node.delClientOne(c.Params("key"))
 		if err != nil {
